@@ -2,9 +2,30 @@ const input = document.getElementById('userText') as HTMLInputElement | null;
 const voiceSelect = document.getElementById('voiceSelect') as HTMLSelectElement | null;
 const button = document.getElementById('readButton') as HTMLButtonElement | null;
 const refreshVoicesButton = document.getElementById('refreshVoicesButton') as HTMLButtonElement | null;
+const initVoicesButton = document.getElementById('initVoicesButton') as HTMLButtonElement | null;
 const clearVoicesButton = document.getElementById('clearVoicesButton') as HTMLButtonElement | null;
 const output = document.getElementById('outputText') as HTMLElement | null;
 let voices: SpeechSynthesisVoice[] = [];
+const selectedVoiceStorageKey = 'simplaPageSelectedVoiceURI';
+
+function getSavedVoiceURI(): string | null {
+  return window.localStorage.getItem(selectedVoiceStorageKey);
+}
+
+function saveVoiceURI(voiceURI: string): void {
+  window.localStorage.setItem(selectedVoiceStorageKey, voiceURI);
+}
+
+function setSelectedVoiceByURI(voiceURI: string): void {
+  if (!voiceSelect) {
+    return;
+  }
+
+  const index = voices.findIndex((voice) => voice.voiceURI === voiceURI);
+  if (index >= 0) {
+    voiceSelect.selectedIndex = index;
+  }
+}
 
 function logAction(message: string): void {
   console.log(`Action: ${message}`);
@@ -36,6 +57,33 @@ function updateOutput(text: string, status: string): void {
   }
 }
 
+function initializeVoices(): void {
+  if (!window.speechSynthesis) {
+    logError('Speech synthesis is not supported in this browser.');
+    return;
+  }
+
+  populateVoices();
+
+  if (!voices.length) {
+    const testUtterance = new SpeechSynthesisUtterance('Loading voices');
+    testUtterance.volume = 0;
+    testUtterance.rate = 1;
+    testUtterance.pitch = 1;
+    testUtterance.onend = () => {
+      setTimeout(populateVoices, 300);
+    };
+
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(testUtterance);
+      logAction('Sent a silent initialization utterance to try and unlock voices');
+    } catch (error) {
+      logError(`Voice initialization failed: ${(error as Error).message}`);
+    }
+  }
+}
+
 function populateVoices(): void {
   logAction('Populating available voices');
 
@@ -63,8 +111,16 @@ function populateVoices(): void {
     voiceSelect.appendChild(option);
   });
 
+  const savedVoiceURI = getSavedVoiceURI();
+  if (savedVoiceURI) {
+    setSelectedVoiceByURI(savedVoiceURI);
+  }
+
+  if (voiceSelect.selectedIndex < 0) {
+    voiceSelect.selectedIndex = 0;
+  }
+
   voiceSelect.disabled = false;
-  voiceSelect.selectedIndex = 0;
   logAction(`Loaded ${voices.length} voice(s)`);
 }
 
@@ -109,6 +165,19 @@ function init(): void {
     window.speechSynthesis.onvoiceschanged = populateVoices;
   }
 
+  voiceSelect?.addEventListener('change', () => {
+    if (!voiceSelect) {
+      return;
+    }
+
+    const selectedIndex = Number(voiceSelect.value);
+    const selectedVoice = voices[selectedIndex];
+    if (selectedVoice) {
+      saveVoiceURI(selectedVoice.voiceURI);
+      logAction(`Saved selected voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+    }
+  });
+
   button.addEventListener('click', () => {
     const text = input.value.trim();
     const displayed = text || 'No text entered yet. Please type something above.';
@@ -116,6 +185,10 @@ function init(): void {
     updateOutput(displayed, status);
 
     if (text) {
+      if (!voices.length) {
+        logAction('No voices loaded yet; trying to initialize voices on click');
+        initializeVoices();
+      }
       speakText(text);
     }
   });
@@ -123,6 +196,11 @@ function init(): void {
   refreshVoicesButton.addEventListener('click', () => {
     populateVoices();
     logAction('Voice list refreshed manually');
+  });
+
+  initVoicesButton?.addEventListener('click', () => {
+    initializeVoices();
+    logAction('Voice initialization requested manually');
   });
 
   clearVoicesButton.addEventListener('click', () => {

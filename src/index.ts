@@ -4,9 +4,18 @@ const button = document.getElementById('readButton') as HTMLButtonElement | null
 const refreshVoicesButton = document.getElementById('refreshVoicesButton') as HTMLButtonElement | null;
 const initVoicesButton = document.getElementById('initVoicesButton') as HTMLButtonElement | null;
 const clearVoicesButton = document.getElementById('clearVoicesButton') as HTMLButtonElement | null;
+const saveBrowserVoiceButton = document.getElementById('saveBrowserVoiceButton') as HTMLButtonElement | null;
+const saveFallbackVoiceButton = document.getElementById('saveFallbackVoiceButton') as HTMLButtonElement | null;
+const saveManualLanguageButton = document.getElementById('saveManualLanguageButton') as HTMLButtonElement | null;
+const fallbackVoiceSelect = document.getElementById('fallbackVoiceSelect') as HTMLSelectElement | null;
+const fallbackLanguageInput = document.getElementById('fallbackLanguageInput') as HTMLInputElement | null;
 const output = document.getElementById('outputText') as HTMLElement | null;
 let voices: SpeechSynthesisVoice[] = [];
 const selectedVoiceStorageKey = 'simplaPageSelectedVoiceURI';
+const selectedFallbackVoiceStorageKey = 'simplaPageSelectedFallbackVoice';
+const selectedFallbackLanguageStorageKey = 'simplaPageSelectedFallbackLanguage';
+const selectedVoiceModeStorageKey = 'simplaPageSelectedVoiceMode';
+const selectedManualLanguageMode = 'manual';
 
 function getSavedVoiceURI(): string | null {
   return window.localStorage.getItem(selectedVoiceStorageKey);
@@ -25,6 +34,55 @@ function setSelectedVoiceByURI(voiceURI: string): void {
   if (index >= 0) {
     voiceSelect.selectedIndex = index;
   }
+}
+
+function getSavedFallbackVoice(): string | null {
+  return window.localStorage.getItem(selectedFallbackVoiceStorageKey);
+}
+
+function saveFallbackVoice(lang: string): void {
+  window.localStorage.setItem(selectedFallbackVoiceStorageKey, lang);
+}
+
+function restoreFallbackVoice(): void {
+  if (!fallbackVoiceSelect) {
+    return;
+  }
+
+  const saved = getSavedFallbackVoice();
+  if (saved !== null) {
+    const option = Array.from(fallbackVoiceSelect.options).find((item) => item.value === saved);
+    if (option) {
+      fallbackVoiceSelect.value = saved;
+    }
+  }
+}
+
+function getSavedFallbackLanguage(): string | null {
+  return window.localStorage.getItem(selectedFallbackLanguageStorageKey);
+}
+
+function saveFallbackLanguage(lang: string): void {
+  window.localStorage.setItem(selectedFallbackLanguageStorageKey, lang);
+}
+
+function restoreFallbackLanguage(): void {
+  if (!fallbackLanguageInput) {
+    return;
+  }
+
+  const saved = getSavedFallbackLanguage();
+  if (saved !== null) {
+    fallbackLanguageInput.value = saved;
+  }
+}
+
+function getSavedVoiceMode(): string | null {
+  return window.localStorage.getItem(selectedVoiceModeStorageKey);
+}
+
+function saveVoiceMode(mode: string): void {
+  window.localStorage.setItem(selectedVoiceModeStorageKey, mode);
 }
 
 function logAction(message: string): void {
@@ -132,18 +190,38 @@ function speakText(text: string): void {
   }
 
   const utterance = new SpeechSynthesisUtterance(text);
-  if (voiceSelect && voices.length) {
-    const selectedIndex = Number(voiceSelect.value);
-    const selectedVoice = voices[selectedIndex];
+  const manualLang = fallbackLanguageInput?.value.trim();
 
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-      logAction(`Speaking with voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+  const savedMode = getSavedVoiceMode();
+
+  if (savedMode === 'browser') {
+    const savedVoiceURI = getSavedVoiceURI();
+    if (savedVoiceURI && voices.length) {
+      const savedIndex = voices.findIndex((voice) => voice.voiceURI === savedVoiceURI);
+      const savedVoice = voices[savedIndex];
+      if (savedVoice) {
+        utterance.voice = savedVoice;
+        logAction(`Speaking with saved browser voice: ${savedVoice.name} (${savedVoice.lang})`);
+      } else {
+        logError('Saved browser voice was not found in the current voice list');
+      }
     } else {
-      logAction('Speaking with default voice because selected voice was unavailable');
+      logError('No saved browser voice URI or voices available');
+    }
+  } else if (savedMode === 'fallback') {
+    if (fallbackVoiceSelect?.value) {
+      utterance.lang = fallbackVoiceSelect.value;
+      logAction(`Speaking with saved fallback language: ${fallbackVoiceSelect.value}`);
+    } else {
+      logError('Saved fallback mode selected but no fallback language value exists');
     }
   } else {
-    logAction('Speaking with default voice because no voice is selected');
+    if (manualLang) {
+      utterance.lang = manualLang;
+      logAction(`Speaking with manual language code: ${manualLang}`);
+    } else {
+      logAction('Speaking with default voice because no saved voice mode is active');
+    }
   }
 
   try {
@@ -155,27 +233,70 @@ function speakText(text: string): void {
 }
 
 function init(): void {
-  if (!input || !voiceSelect || !button || !refreshVoicesButton || !clearVoicesButton || !output) {
+  if (!input || !voiceSelect || !button || !refreshVoicesButton || !clearVoicesButton || !output || !fallbackVoiceSelect || !fallbackLanguageInput || !saveManualLanguageButton) {
     return;
   }
 
   populateVoices();
+  restoreFallbackVoice();
+  restoreFallbackLanguage();
 
   if (window.speechSynthesis) {
     window.speechSynthesis.onvoiceschanged = populateVoices;
   }
 
-  voiceSelect?.addEventListener('change', () => {
+  saveBrowserVoiceButton?.addEventListener('click', () => {
     if (!voiceSelect) {
       return;
     }
 
     const selectedIndex = Number(voiceSelect.value);
     const selectedVoice = voices[selectedIndex];
-    if (selectedVoice) {
-      saveVoiceURI(selectedVoice.voiceURI);
-      logAction(`Saved selected voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+    if (!selectedVoice) {
+      logError('No browser voice selected to save');
+      return;
     }
+
+    saveVoiceURI(selectedVoice.voiceURI);
+    saveVoiceMode('browser');
+    logAction(`Saved browser voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+    updateOutput(`Saved browser voice: ${selectedVoice.name}`, 'Browser voice will be used when speaking.');
+  });
+
+  saveFallbackVoiceButton?.addEventListener('click', () => {
+    if (!fallbackVoiceSelect) {
+      return;
+    }
+
+    saveFallbackVoice(fallbackVoiceSelect.value);
+    saveVoiceMode('fallback');
+    logAction(`Saved fallback voice language: ${fallbackVoiceSelect.value}`);
+    updateOutput(`Saved fallback voice language: ${fallbackVoiceSelect.value}`, 'Fallback voice will be used when speaking if browser voice is not selected.');
+  });
+
+  saveManualLanguageButton?.addEventListener('click', () => {
+    if (!fallbackLanguageInput) {
+      return;
+    }
+
+    const manualLang = fallbackLanguageInput.value.trim();
+    if (!manualLang) {
+      logError('Manual language code is empty, please enter a language code before saving.');
+      return;
+    }
+
+    saveFallbackLanguage(manualLang);
+    saveVoiceMode(selectedManualLanguageMode);
+    logAction(`Saved manual language code: ${manualLang}`);
+    updateOutput(`Saved manual language code: ${manualLang}`, 'Manual language will be used when speaking.');
+  });
+
+  fallbackLanguageInput.addEventListener('change', () => {
+    if (!fallbackLanguageInput) {
+      return;
+    }
+    saveFallbackLanguage(fallbackLanguageInput.value.trim());
+    logAction(`Saved manual fallback language: ${fallbackLanguageInput.value.trim()}`);
   });
 
   button.addEventListener('click', () => {

@@ -69,11 +69,33 @@
   <div class="container">
     <h1>Simple Text Reader</h1>
     <label for="userText">Enter text below:</label>
-    <input id="userText" type="text" placeholder="Type something here..." />
-    <label for="voiceSelect">Choose a voice:</label>
-    <select id="voiceSelect" aria-label="Voice selection">
-      <option>Loading voices...</option>
-    </select>
+    <input id="userText" value="Hello, world! How Are You?" type="text" placeholder="Type something here..." />
+    <label for="voiceSelect">Choose a browser voice:</label>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+      <select id="voiceSelect" aria-label="Browser voice selection">
+        <option>Loading voices...</option>
+      </select>
+      <button id="saveBrowserVoiceButton" type="button">Save browser voice</button>
+    </div>
+    <label for="fallbackVoiceSelect">Fallback voice language:</label>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+      <select id="fallbackVoiceSelect" aria-label="Fallback voice selection">
+        <option value="">Use default voice</option>
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="en-AU">English (Australia)</option>
+        <option value="es-ES">Spanish (Spain)</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="it-IT">Italian</option>
+      </select>
+      <button id="saveFallbackVoiceButton" type="button">Save fallback voice</button>
+    </div>
+    <label for="fallbackLanguageInput">Manual language code:</label>
+    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+      <input id="fallbackLanguageInput" type="text" placeholder="e.g. en-US or es-ES" />
+      <button id="saveManualLanguageButton" type="button">Save manual language</button>
+    </div>
     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
       <button id="readButton" type="button">Read text aloud</button>
       <button id="refreshVoicesButton" type="button">Repopulate voices</button>

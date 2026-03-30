@@ -61,6 +61,7 @@
       align-items: center;
       font-size: 1rem;
       word-break: break-word;
+      white-space: pre-wrap;
     }
   </style>
 </head>
@@ -73,65 +74,14 @@
     <select id="voiceSelect" aria-label="Voice selection">
       <option>Loading voices...</option>
     </select>
-    <button id="readButton" type="button">Read text aloud</button>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+      <button id="readButton" type="button">Read text aloud</button>
+      <button id="refreshVoicesButton" type="button">Repopulate voices</button>
+      <button id="clearVoicesButton" type="button">Clear all voices</button>
+    </div>
     <div class="output" id="outputText">Your text will appear here when you click the button.</div>
   </div>
 
-  <script>
-    const input = document.getElementById('userText');
-    const voiceSelect = document.getElementById('voiceSelect');
-    const button = document.getElementById('readButton');
-    const output = document.getElementById('outputText');
-    let voices = [];
-
-    function populateVoices() {
-      voices = window.speechSynthesis.getVoices();
-      voiceSelect.innerHTML = '';
-
-      if (!voices.length) {
-        const option = document.createElement('option');
-        option.textContent = 'No voices available';
-        voiceSelect.appendChild(option);
-        return;
-      }
-
-      voices.forEach((voice, index) => {
-        const option = document.createElement('option');
-        option.value = index;
-        option.textContent = `${voice.name} (${voice.lang})${voice.default ? ' — default' : ''}`;
-        voiceSelect.appendChild(option);
-      });
-    }
-
-    function speakText(text) {
-      if (!window.speechSynthesis) {
-        alert('Speech synthesis is not supported in this browser.');
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      const selectedVoice = voices[voiceSelect.value];
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    }
-
-    if (window.speechSynthesis) {
-      populateVoices();
-      window.speechSynthesis.onvoiceschanged = populateVoices;
-    }
-
-    button.addEventListener('click', () => {
-      const text = input.value.trim();
-      const displayed = text ? text : 'No text entered yet. Please type something above.';
-      output.textContent = displayed;
-
-      if (text) {
-        speakText(text);
-      }
-    });
-  </script>
+  <script type="module" src="dist/index.js"></script>
 </body>
 </html>

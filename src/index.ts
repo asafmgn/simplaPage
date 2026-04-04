@@ -10,12 +10,32 @@ const saveManualLanguageButton = document.getElementById('saveManualLanguageButt
 const fallbackVoiceSelect = document.getElementById('fallbackVoiceSelect') as HTMLSelectElement | null;
 const fallbackLanguageInput = document.getElementById('fallbackLanguageInput') as HTMLInputElement | null;
 const output = document.getElementById('outputText') as HTMLElement | null;
+const playButton = document.getElementById('playButton') as HTMLButtonElement | null;
+const pauseButton = document.getElementById('pauseButton') as HTMLButtonElement | null;
+const stopButton = document.getElementById('stopButton') as HTMLButtonElement | null;
+const fixedVoicesUrl = new URL('../src/fixedVoices.json', import.meta.url).href;
+let fixedVoices: SpeechSynthesisVoice[] = [];
 let voices: SpeechSynthesisVoice[] = [];
+let currentUtterance: SpeechSynthesisUtterance | null = null;
 const selectedVoiceStorageKey = 'simplaPageSelectedVoiceURI';
 const selectedFallbackVoiceStorageKey = 'simplaPageSelectedFallbackVoice';
 const selectedFallbackLanguageStorageKey = 'simplaPageSelectedFallbackLanguage';
 const selectedVoiceModeStorageKey = 'simplaPageSelectedVoiceMode';
 const selectedManualLanguageMode = 'manual';
+
+async function loadFixedVoices(): Promise<void> {
+  try {
+    const response = await fetch(fixedVoicesUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to load fixed voices: ${response.status} ${response.statusText}`);
+    }
+    const data = (await response.json()) as SpeechSynthesisVoice[];
+    fixedVoices = data;
+    logAction(`Loaded ${fixedVoices.length} fixed voice(s) from JSON`);
+  } catch (error) {
+    logError(`Error loading fixed voices: ${(error as Error).message}`);
+  }
+}
 
 function getSavedVoiceURI(): string | null {
   return window.localStorage.getItem(selectedVoiceStorageKey);
@@ -226,6 +246,10 @@ function speakText(text: string): void {
 
   try {
     window.speechSynthesis.cancel();
+    currentUtterance = utterance;
+    utterance.onend = () => {
+      currentUtterance = null;
+    };
     window.speechSynthesis.speak(utterance);
   } catch (error) {
     logError(`Failed to speak text: ${(error as Error).message}`);
@@ -233,13 +257,14 @@ function speakText(text: string): void {
 }
 
 function init(): void {
-  if (!input || !voiceSelect || !button || !refreshVoicesButton || !clearVoicesButton || !output || !fallbackVoiceSelect || !fallbackLanguageInput || !saveManualLanguageButton) {
+  if (!input || !voiceSelect || !button || !refreshVoicesButton || !clearVoicesButton || !output || !fallbackVoiceSelect || !fallbackLanguageInput || !saveManualLanguageButton || !playButton || !pauseButton || !stopButton) {
     return;
   }
 
   populateVoices();
   restoreFallbackVoice();
   restoreFallbackLanguage();
+  loadFixedVoices();
 
   if (window.speechSynthesis) {
     window.speechSynthesis.onvoiceschanged = populateVoices;
@@ -336,6 +361,40 @@ function init(): void {
 
     updateOutput('No voices available', 'All voices cleared. Repopulate to reload available voices.');
     logAction('Voice list cleared manually');
+  });
+
+  playButton.addEventListener('click', () => {
+    if (currentUtterance) {
+      window.speechSynthesis.resume();
+      logAction('Resumed speaking');
+    } else {
+      const text = input?.value.trim();
+      if (text) {
+        if (!voices.length) {
+          logAction('No voices loaded yet; trying to initialize voices on click');
+          initializeVoices();
+        }
+        speakText(text);
+        logAction('Started speaking');
+      } else {
+        logError('No text to speak');
+      }
+    }
+  });
+
+  pauseButton.addEventListener('click', () => {
+    if (currentUtterance) {
+      window.speechSynthesis.pause();
+      logAction('Paused speaking');
+    }
+  });
+
+  stopButton.addEventListener('click', () => {
+    if (currentUtterance) {
+      window.speechSynthesis.cancel();
+      currentUtterance = null;
+      logAction('Stopped speaking');
+    }
   });
 }
 
